@@ -498,7 +498,6 @@
             });
 
             // Load shared projects
-            // Corrected collection path to be public/data/projects
             const sharedProjectsRef = collection(db, "artifacts", appId, "public", "data", "projects");
             sharedProjectsList.innerHTML = '<p class="text-slate-400">Loading shared projects...</p>';
 
@@ -519,6 +518,9 @@
                 if (querySnapshot.empty) {
                     sharedProjectsList.innerHTML = '<p class="text-slate-400 text-center">No shared projects found.</p>';
                 }
+            }, (error) => {
+                console.error("Error with shared projects snapshot listener:", error);
+                sharedProjectsList.innerHTML = '<p class="text-red-400 text-center">Error loading shared projects. Check console for details.</p>';
             });
 
              // Add event listeners to delete buttons after loading
@@ -617,7 +619,6 @@
 
             try {
                 const privateDocRef = doc(db, "artifacts", appId, "users", localUserId, "projects", activeProjectID);
-                // Corrected public document reference path
                 const publicDocRef = doc(db, "artifacts", appId, "public", "data", "projects", activeProjectID);
                 const docSnap = await getDoc(privateDocRef);
                 if (!docSnap.exists()) {
