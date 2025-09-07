@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celtx-like Screenwriter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .screenplay-editor {
+            font-family: 'Courier Prime', monospace;
+            line-height: 1.5;
+            background-color: #1e293b;
+            border-radius: 12px;
+            padding: 3rem;
+            min-height: 80vh;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            outline: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            border: 1px solid #334155;
+            color: #f8fafc;
+        }
+
+        .screenplay-editor:focus {
+            border-color: #64748b;
+        }
+
+        /* Screenplay Element Styling */
+        .scene-heading {
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            line-height: 1.2;
+        }
+
+        .character {
+            text-transform: uppercase;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 1.5em;
+            margin-bottom: 0;
+        }
+
+        .dialogue {
+            margin-left: 20%;
+            margin-right: 20%;
+            margin-top: 0;
+            margin-bottom: 0.5em;
+        }
+
+        .action {
+            margin-top: 1em;
+            margin-bottom: 1em;
+        }
+
+        .transition {
+            text-transform: uppercase;
+            text-align: right;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .parenthetical {
+            margin-left: 15%;
+            margin-right: 15%;
+            font-style: italic;
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 10px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background-color: #4b5563;
+            color: #fff;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="p-8">
+
+    <!-- Modal for New Project -->
+    <div id="new-project-modal" class="modal-overlay">
+        <div class="bg-slate-800 p-8 rounded-xl shadow-lg w-full max-w-sm">
+            <h2 class="text-xl font-bold mb-4 text-white">New Project</h2>
+            <input type="text" id="new-project-name" placeholder="Enter project name" class="w-full p-2 bg-slate-700 rounded-lg border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring focus:ring-blue-500">
+            <div class="flex justify-end space-x-4 mt-4">
+                <button id="cancel-new-project" class="px-4 py-2 text-slate-400 hover:text-white transition-colors rounded-lg">Cancel</button>
+                <button id="create-project" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">Create</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="bg-slate-800 p-8 rounded-xl shadow-lg w-full max-w-sm">
+            <h2 class="text-xl font-bold mb-4 text-white">Confirm Deletion</h2>
+            <p id="confirmation-message" class="text-white mb-4">Are you sure you want to delete this project?</p>
+            <div class="flex justify-end space-x-4 mt-4">
+                <button id="cancel-delete" class="px-4 py-2 text-slate-400 hover:text-white transition-colors rounded-lg">Cancel</button>
+                <button id="confirm-delete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header and Controls -->
+    <div class="fixed top-4 right-4 flex items-center space-x-2 p-2 bg-slate-800 text-white rounded-xl shadow-md z-50">
+        <span class="text-xs font-semibold">User ID:</span>
+        <span id="userIdDisplay" class="text-xs font-mono truncate max-w-[100px] sm:max-w-full">Loading...</span>
+        <button id="copyIdButton" class="text-slate-400 hover:text-white transition-colors" title="Copy User ID">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 2a2 2 0 00-2 2v2H4a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-2h2a2 2 0 002-2V4a2 2 0 00-2-2H8zm0 2h6a.5.5 0 01.5.5v6.5a.5.5 0 01-.5.5h-6a.5.5 0 01-.5-.5V4.5a.5.5 0 01.5-.5z" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="fixed top-4 left-4 p-2 bg-slate-800 text-white rounded-xl shadow-md z-50">
+        <h3 class="text-sm font-semibold mb-1">Active Writers</h3>
+        <ul id="activeUsersList" class="space-y-1 text-sm">
+            <!-- Active user IDs will be listed here -->
+        </ul>
+    </div>
+    
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-green-500 text-white text-sm py-2 px-4 rounded-full transition-opacity duration-300 opacity-0 z-50" id="status-message">
+        Saved
+    </div>
+
+    <div class="container flex flex-col items-center">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-bold tracking-tight text-white mb-2">Screenplay Studio</h1>
+            <p class="text-md sm:text-lg text-slate-400">Collaborate with a partner to bring your story to life.</p>
+        </header>
+
+        <!-- Project List View -->
+        <main id="projects-view" class="w-full max-w-xl">
+            <h2 class="text-2xl font-bold text-white mb-4">My Private Projects</h2>
+            <div id="projects-list" class="space-y-4">
+                <!-- Project items will be loaded here -->
+            </div>
+            <button id="add-project-button" class="mt-8 w-full p-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors">
+                + New Project
+            </button>
+
+            <h2 class="text-2xl font-bold text-white mt-8 mb-4">Shared Projects</h2>
+            <div id="shared-projects-list" class="space-y-4">
+                <!-- Shared project items will be loaded here -->
+            </div>
+        </main>
+
+        <!-- Editor View -->
+        <main id="editor-view" class="w-full hidden">
+            <div class="flex justify-between items-center mb-4">
+                <button id="back-to-projects" class="flex items-center space-x-2 text-slate-400 hover:text-white transition-colors p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span>Back</span>
+                </button>
+                <div id="document-title-container" class="flex-grow text-center">
+                    <input id="document-title" class="text-center text-3xl font-bold bg-transparent border-none outline-none text-white focus:ring-0 placeholder-slate-500" placeholder="Untitled Screenplay" />
+                </div>
+                <button id="share-project-button" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                    Share
+                </button>
+            </div>
+            <div id="editor-container" class="screenplay-editor relative" contenteditable="true" spellcheck="false">
+                <p class="action">The sun rises over a small town, casting long shadows across the empty streets. The air is still, save for the gentle rustle of leaves.</p>
+                <p class="scene-heading">INT. CAFE - DAY</p>
+                <p class="action">A single fluorescent light flickers overhead. JANE sits at a table, staring into her cold coffee.</p>
+                <p class="character">JANE</p>
+                <p class="dialogue">It's a beautiful day, isn't it?</p>
+            </div>
+        </main>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc, addDoc, collection, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        const projectsView = document.getElementById('projects-view');
+        const editorView = document.getElementById('editor-view');
+        const projectsList = document.getElementById('projects-list');
+        const sharedProjectsList = document.getElementById('shared-projects-list');
+        const addProjectButton = document.getElementById('add-project-button');
+        const backToProjectsButton = document.getElementById('back-to-projects');
+        const shareProjectButton = document.getElementById('share-project-button');
+        const newProjectModal = document.getElementById('new-project-modal');
+        const newProjectNameInput = document.getElementById('new-project-name');
+        const createProjectButton = document.getElementById('create-project');
+        const cancelNewProjectButton = document.getElementById('cancel-new-project');
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const confirmationMessage = document.getElementById('confirmation-message');
+        const confirmDeleteButton = document.getElementById('confirm-delete');
+        const cancelDeleteButton = document.getElementById('cancel-delete');
+        
+        const editor = document.getElementById('editor-container');
+        const titleInput = document.getElementById('document-title');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const activeUsersList = document.getElementById('activeUsersList');
+        const statusMessage = document.getElementById('status-message');
+        const copyIdButton = document.getElementById('copyIdButton');
+
+        let isInitialized = false;
+        let lastKnownText = '';
+        let localUserId = '';
+        let debounceTimeout = null;
+        let isProgrammaticUpdate = false;
+        let activeProjectID = null;
+        let activeProjectSource = null; // 'users' or 'public'
+        let projectListUnsubscribe = null;
+        let sharedProjectListUnsubscribe = null;
+        let editorUnsubscribe = null;
+
+        const showStatus = (message) => {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('opacity-0');
+            statusMessage.classList.add('opacity-100', 'bg-green-500');
+            setTimeout(() => {
+                statusMessage.classList.remove('opacity-100');
+                statusMessage.classList.add('opacity-0');
+            }, 2000);
+        };
+
+        const showWarning = (message) => {
+             statusMessage.textContent = message;
+            statusMessage.classList.remove('opacity-0');
+            statusMessage.classList.add('opacity-100', 'bg-red-500');
+            setTimeout(() => {
+                statusMessage.classList.remove('opacity-100');
+                statusMessage.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        const debounce = (func, delay) => {
+            return function(...args) {
+                clearTimeout(debounceTimeout);
+                debounceTimeout = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
+        };
+        
+        const getCaretPosition = (element) => {
+            const selection = window.getSelection();
+            if (selection.rangeCount === 0) return 0;
+            const range = selection.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(element);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+            return preCaretRange.toString().length;
+        };
+
+        const setCaretPosition = (element, position) => {
+            const range = document.createRange();
+            const selection = window.getSelection();
+            
+            let charCount = 0;
+            let found = false;
+            
+            const traverseNodes = (node) => {
+                if (found) return;
+                if (node.nodeType === Node.TEXT_NODE) {
+                    if (charCount + node.length >= position) {
+                        range.setStart(node, position - charCount);
+                        range.collapse(true);
+                        found = true;
+                        return;
+                    }
+                    charCount += node.length;
+                } else {
+                    for (let i = 0; i < node.childNodes.length; i++) {
+                        traverseNodes(node.childNodes[i]);
+                    }
+                }
+            };
+            
+            traverseNodes(element);
+            if (found) {
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        };
+
+        const saveDocument = debounce(async (content, title, selection) => {
+            if (!localUserId || !activeProjectID) return;
+            try {
+                // Correctly references document within the private or public collection
+                const docRef = activeProjectSource === 'users'
+                    ? doc(db, "artifacts", appId, "users", localUserId, "projects", activeProjectID)
+                    : doc(db, "artifacts", appId, "public", "data", "projects", activeProjectID);
+                const docSnap = await getDoc(docRef);
+                const currentTime = Date.now();
+                
+                const updateData = {
+                    content: content,
+                    title: title,
+                    lastModified: currentTime,
+                    lastModifiedBy: localUserId,
+                };
+                
+                const users = docSnap.exists() && docSnap.data().users ? docSnap.data().users : {};
+                users[localUserId] = {
+                    lastActive: currentTime,
+                    selection: selection
+                };
+                updateData.users = users;
+
+                await setDoc(docRef, updateData, { merge: true });
+                showStatus('Saved');
+
+            } catch (error) {
+                console.error("Error saving document:", error);
+                showWarning('Save failed!');
+            }
+        }, 1000);
+
+        const formatScreenplay = (text) => {
+            const lines = text.split('\n');
+            let formattedHtml = '';
+            
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                let className = 'action';
+                
+                if (trimmedLine.length === 0) {
+                    formattedHtml += '<p class="action">&nbsp;</p>';
+                    return;
+                }
+                
+                if (trimmedLine.startsWith('INT.') || trimmedLine.startsWith('EXT.')) {
+                    className = 'scene-heading';
+                } else if (trimmedLine.endsWith('TO:')) {
+                    className = 'transition';
+                } else if (trimmedLine.toUpperCase() === trimmedLine && trimmedLine.length > 0) {
+                    className = 'character';
+                } else if (trimmedLine.startsWith('(') && trimmedLine.endsWith(')')) {
+                    className = 'parenthetical';
+                } else {
+                    const lastElement = editor.querySelector('p:last-child');
+                    if (lastElement && lastElement.classList.contains('character')) {
+                        className = 'dialogue';
+                    }
+                }
+                
+                formattedHtml += `<p class="${className}">${line}</p>`;
+            });
+
+            return formattedHtml;
+        };
+
+        const updateEditorContent = (newContent) => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newContent;
+            if (editor.innerHTML.replace(/<p>&nbsp;<\/p>/g, '<p></p>') === tempDiv.innerHTML.replace(/<p>&nbsp;<\/p>/g, '<p></p>')) {
+                return;
+            }
+            
+            const selection = window.getSelection();
+            const caretPosition = getCaretPosition(editor);
+
+            isProgrammaticUpdate = true;
+            editor.innerHTML = newContent;
+            setCaretPosition(editor, caretPosition);
+            isProgrammaticUpdate = false;
+        };
+
+        const updateUI = (docData) => {
+            if (docData.content !== lastKnownText) {
+                updateEditorContent(docData.content);
+                lastKnownText = docData.content;
+            }
+            
+            if (docData.title) {
+                titleInput.value = docData.title;
+            }
+
+            const users = docData.users || {};
+            const now = Date.now();
+            activeUsersList.innerHTML = '';
+            
+            Object.entries(users).forEach(([userId, userData]) => {
+                if (now - userData.lastActive < 60000) {
+                    const li = document.createElement('li');
+                    li.textContent = userId === localUserId ? `${userId} (You)` : userId;
+                    li.className = 'text-slate-300';
+                    activeUsersList.appendChild(li);
+                }
+            });
+        };
+
+        const handleInput = () => {
+            if (isProgrammaticUpdate) return;
+            const content = editor.innerText;
+            const title = titleInput.value;
+            const selection = { start: getCaretPosition(editor), end: getCaretPosition(editor) };
+            lastKnownText = content;
+            saveDocument(content, title, selection);
+        };
+
+        const loadProjects = () => {
+            if (!localUserId) return;
+            if (projectListUnsubscribe) projectListUnsubscribe();
+            if (sharedProjectListUnsubscribe) sharedProjectListUnsubscribe();
+
+            const projectsRef = collection(db, "artifacts", appId, "users", localUserId, "projects");
+            projectsList.innerHTML = '<p class="text-slate-400">Loading private projects...</p>';
+
+            projectListUnsubscribe = onSnapshot(projectsRef, (querySnapshot) => {
+                projectsList.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const project = doc.data();
+                    const projectID = doc.id;
+                    const projectItem = document.createElement('div');
+                    projectItem.className = 'flex items-center justify-between p-4 bg-slate-800 rounded-lg shadow-md hover:bg-slate-700 transition-colors cursor-pointer';
+                    projectItem.innerHTML = `
+                        <span class="text-lg font-bold">${project.title || 'Untitled Project'}</span>
+                        <div class="flex items-center space-x-2">
+                            ${project.isPublic ? '<span class="text-xs text-green-400">Shared</span>' : ''}
+                            <button class="delete-project-button text-red-400 hover:text-red-500 transition-colors p-1" data-id="${projectID}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    `;
+                    projectItem.addEventListener('click', () => openProject(projectID, 'users'));
+                    projectsList.appendChild(projectItem);
+                });
+
+                if (querySnapshot.empty) {
+                    projectsList.innerHTML = '<p class="text-slate-400 text-center">No projects found. Create a new one!</p>';
+                }
+            });
+
+            // Load shared projects
+            // Corrected collection path to be public/data/projects
+            const sharedProjectsRef = collection(db, "artifacts", appId, "public", "data", "projects");
+            sharedProjectsList.innerHTML = '<p class="text-slate-400">Loading shared projects...</p>';
+
+            sharedProjectListUnsubscribe = onSnapshot(sharedProjectsRef, (querySnapshot) => {
+                sharedProjectsList.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const project = doc.data();
+                    const projectID = doc.id;
+                    const projectItem = document.createElement('div');
+                    projectItem.className = 'flex items-center justify-between p-4 bg-slate-800 rounded-lg shadow-md hover:bg-slate-700 transition-colors cursor-pointer';
+                    projectItem.innerHTML = `
+                        <span class="text-lg font-bold">${project.title || 'Untitled Project'}</span>
+                        <span class="text-sm text-slate-400">By ${project.lastModifiedBy}</span>
+                    `;
+                    projectItem.addEventListener('click', () => openProject(projectID, 'public'));
+                    sharedProjectsList.appendChild(projectItem);
+                });
+                if (querySnapshot.empty) {
+                    sharedProjectsList.innerHTML = '<p class="text-slate-400 text-center">No shared projects found.</p>';
+                }
+            });
+
+             // Add event listeners to delete buttons after loading
+            document.querySelectorAll('.delete-project-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showConfirmationModal(button.dataset.id);
+                });
+            });
+        };
+
+        const showConfirmationModal = (projectID) => {
+            confirmationModal.style.display = 'flex';
+            confirmDeleteButton.dataset.id = projectID;
+        };
+
+        const hideConfirmationModal = () => {
+            confirmationModal.style.display = 'none';
+        };
+
+        const deleteProject = async (projectID) => {
+            try {
+                const docRef = doc(db, "artifacts", appId, "users", localUserId, "projects", projectID);
+                await deleteDoc(docRef);
+                showStatus('Project deleted successfully!');
+                hideConfirmationModal();
+            } catch (error) {
+                console.error("Error deleting document:", error);
+                showWarning('Deletion failed!');
+            }
+        };
+
+        const openProject = (projectID, source) => {
+            activeProjectID = projectID;
+            activeProjectSource = source;
+            projectsView.classList.add('hidden');
+            editorView.classList.remove('hidden');
+
+            if (editorUnsubscribe) editorUnsubscribe();
+            
+            // Show share button only for private projects
+            if (activeProjectSource === 'users') {
+                shareProjectButton.classList.remove('hidden');
+            } else {
+                shareProjectButton.classList.add('hidden');
+            }
+
+            const docRef = source === 'users'
+                ? doc(db, "artifacts", appId, "users", localUserId, "projects", activeProjectID)
+                : doc(db, "artifacts", appId, "public", "data", "projects", activeProjectID);
+            editorUnsubscribe = onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    updateUI(data);
+                } else {
+                    console.log("No such document!");
+                    editor.innerHTML = '<p class="action">The project was deleted by a collaborator.</p>';
+                    titleInput.value = 'Project Deleted';
+                }
+            }, (error) => {
+                console.error("Error with editor snapshot listener:", error);
+            });
+        };
+
+        const createNewProject = async () => {
+            const projectName = newProjectNameInput.value.trim();
+            if (!projectName) {
+                newProjectNameInput.placeholder = 'Project name cannot be empty!';
+                return;
+            }
+            try {
+                const projectsRef = collection(db, "artifacts", appId, "users", localUserId, "projects");
+                const newDocRef = await addDoc(projectsRef, {
+                    title: projectName,
+                    content: `<p class="action">The sun rises over a small town, casting long shadows across the empty streets. The air is still, save for the gentle rustle of leaves.</p><p class="scene-heading">INT. CAFE - DAY</p><p class="action">A single fluorescent light flickers overhead. JANE sits at a table, staring into her cold coffee.</p><p class="character">JANE</p><p class="dialogue">It's a beautiful day, isn't it?</p>`,
+                    lastModified: Date.now(),
+                    lastModifiedBy: localUserId,
+                    isPublic: false,
+                    users: { [localUserId]: { lastActive: Date.now(), selection: null } }
+                });
+                showStatus('Project created!');
+                newProjectNameInput.value = '';
+                newProjectModal.style.display = 'none';
+                openProject(newDocRef.id, 'users');
+            } catch (error) {
+                console.error("Error creating new project:", error);
+                showWarning('Creation failed!');
+            }
+        };
+
+        const shareProject = async () => {
+            if (!activeProjectID || activeProjectSource !== 'users') {
+                showWarning("Cannot share a shared project!");
+                return;
+            }
+
+            try {
+                const privateDocRef = doc(db, "artifacts", appId, "users", localUserId, "projects", activeProjectID);
+                // Corrected public document reference path
+                const publicDocRef = doc(db, "artifacts", appId, "public", "data", "projects", activeProjectID);
+                const docSnap = await getDoc(privateDocRef);
+                if (!docSnap.exists()) {
+                    showWarning("Project not found!");
+                    return;
+                }
+                
+                const projectData = docSnap.data();
+                projectData.isPublic = true;
+                await setDoc(publicDocRef, projectData, { merge: true });
+                
+                // Update the private document to mark it as public
+                await updateDoc(privateDocRef, { isPublic: true });
+                
+                const sharedUrl = `${window.location.origin}${window.location.pathname}?project=${activeProjectID}`;
+                
+                // Copy URL to clipboard using a fallback method
+                const tempInput = document.createElement('textarea');
+                tempInput.value = sharedUrl;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                try {
+                    document.execCommand('copy');
+                    showStatus('Shared and URL copied!');
+                } catch (err) {
+                    console.error('Could not copy URL: ', err);
+                    showStatus('Shared, but failed to copy URL. Please copy it manually.');
+                }
+                document.body.removeChild(tempInput);
+
+            } catch (error) {
+                console.error("Error sharing project:", error);
+                showWarning('Sharing failed!');
+            }
+        };
+
+        const setupEventListeners = () => {
+            addProjectButton.addEventListener('click', () => {
+                newProjectModal.style.display = 'flex';
+                newProjectNameInput.focus();
+            });
+            cancelNewProjectButton.addEventListener('click', () => {
+                newProjectModal.style.display = 'none';
+            });
+            createProjectButton.addEventListener('click', createNewProject);
+            newProjectNameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') createNewProject();
+            });
+            cancelDeleteButton.addEventListener('click', hideConfirmationModal);
+            confirmDeleteButton.addEventListener('click', () => {
+                deleteProject(confirmDeleteButton.dataset.id);
+            });
+            editor.addEventListener('input', handleInput);
+            titleInput.addEventListener('input', handleInput);
+            editor.addEventListener('keyup', handleInput);
+            editor.addEventListener('mouseup', handleInput);
+            backToProjectsButton.addEventListener('click', () => {
+                if (editorUnsubscribe) editorUnsubscribe();
+                projectsView.classList.remove('hidden');
+                editorView.classList.add('hidden');
+                loadProjects();
+            });
+            shareProjectButton.addEventListener('click', shareProject);
+
+            copyIdButton.addEventListener('click', () => {
+                const idText = userIdDisplay.textContent;
+                if (idText && idText !== 'Loading...') {
+                    const tempInput = document.createElement('textarea');
+                    tempInput.value = idText;
+                    document.body.appendChild(tempInput);
+                    tempInput.select();
+                    try {
+                        document.execCommand('copy');
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'tooltip';
+                        tooltip.textContent = 'Copied!';
+                        document.body.appendChild(tooltip);
+                        const rect = copyIdButton.getBoundingClientRect();
+                        tooltip.style.top = `${rect.bottom + 10}px`;
+                        tooltip.style.left = `${rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2)}px`;
+                        tooltip.classList.add('opacity-100');
+                        setTimeout(() => {
+                            tooltip.classList.remove('opacity-100');
+                            setTimeout(() => tooltip.remove(), 300);
+                        }, 1500);
+                    } catch (err) {
+                        console.error('Could not copy text: ', err);
+                    }
+                    document.body.removeChild(tempInput);
+                }
+            });
+        };
+
+        const init = async () => {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const projectIdFromUrl = urlParams.get('project');
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                localUserId = auth.currentUser.uid;
+                userIdDisplay.textContent = localUserId;
+                setupEventListeners();
+                
+                if (projectIdFromUrl) {
+                    openProject(projectIdFromUrl, 'public');
+                } else {
+                    loadProjects();
+                }
+
+                isInitialized = true;
+            } catch (error) {
+                console.error("Firebase Initialization or Auth Error:", error);
+            }
+        };
+        
+        window.onload = init;
+    </script>
+</body>
+</html>
