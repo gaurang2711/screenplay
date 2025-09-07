@@ -229,7 +229,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, getDoc, addDoc, collection, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
@@ -712,33 +712,43 @@
             });
         };
 
-        const init = async () => {
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                const projectIdFromUrl = urlParams.get('project');
-
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                localUserId = auth.currentUser.uid;
+        // Initialize Firebase and set up auth state listener
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // User is signed in.
+                localUserId = user.uid;
                 userIdDisplay.textContent = localUserId;
                 setupEventListeners();
                 
+                const urlParams = new URLSearchParams(window.location.search);
+                const projectIdFromUrl = urlParams.get('project');
+
                 if (projectIdFromUrl) {
                     openProject(projectIdFromUrl, 'public');
                 } else {
                     loadProjects();
                 }
-
-                isInitialized = true;
-            } catch (error) {
-                console.error("Firebase Initialization or Auth Error:", error);
+            } else {
+                // User is signed out. Sign them in.
+                if (initialAuthToken) {
+                    signInWithCustomToken(auth, initialAuthToken).catch(error => {
+                        console.error("Custom token sign-in failed:", error);
+                        signInAnonymously(auth); // Fallback to anonymous sign-in
+                    });
+                } else {
+                    signInAnonymously(auth).catch(error => {
+                        console.error("Anonymous sign-in failed:", error);
+                        showWarning("Authentication failed. Please refresh the page.");
+                    });
+                }
             }
-        };
+        }, (error) => {
+            console.error("Firebase Auth state change error:", error);
+            showWarning("Auth error. Please check console.");
+        });
         
-        window.onload = init;
+        // No need to call init() directly, the onAuthStateChanged listener handles it.
+        // window.onload = init;
     </script>
 </body>
 </html>
